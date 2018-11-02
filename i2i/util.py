@@ -1,5 +1,6 @@
 from __future__ import division
 
+from functools import wraps
 import types
 import inspect
 
@@ -23,6 +24,22 @@ def inject_method(self, method_function, method_name=None):
                 self = inject_method(self, method)
 
     return self
+
+
+def add_self_as_first_argument(func):
+    @wraps(func)
+    def wrapped_func(self, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapped_func
+
+
+def add_cls_as_first_argument(func):
+    @wraps(func)
+    def wrapped_func(cls, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapped_func
 
 
 def infer_if_function_might_be_intended_as_a_classmethod_or_staticmethod(func):
@@ -58,22 +75,33 @@ def infer_if_function_might_be_intended_as_a_classmethod_or_staticmethod(func):
     a_normal_func: normal
     a_func_that_is_probably_a_classmethod: classmethod
     a_func_that_is_probably_a_staticmethod: staticmethod
-    a_func_that_is_probably_a_classmethod_but_is_not: normal
-    a_func_that_is_probably_a_staticmethod_but_is_not: normal
+    a_func_that_is_probably_a_classmethod_but_is_not: normal_with_cls
+    a_func_that_is_probably_a_staticmethod_but_is_not: normal_with_self
     """
-    argsspec = inspect.getargspec(func)
+    argsspec = inspect.getfullargspec(func)
     if len(argsspec.args) > 0:
         first_element_has_no_defaults = bool(len(argsspec.args) > len(argsspec.defaults))
-        if argsspec.args[0] == 'cls' and first_element_has_no_defaults:
-            return 'classmethod'
-        elif argsspec.args[0] == 'self' and first_element_has_no_defaults:
-            return 'staticmethod'
+        if argsspec.args[0] == 'cls':
+            if first_element_has_no_defaults:
+                return 'classmethod'
+            else:
+                return 'normal_with_cls'
+        elif argsspec.args[0] == 'self':
+            if first_element_has_no_defaults:
+                return 'staticmethod'
+            else:
+                return 'normal_with_self'
     return 'normal'
 
 
-def decorate_as_staticmethod_or_classmethod(func):
-    pass
-
+def decorate_as_staticmethod_or_classmethod_if_needed(func):
+    type_of_func = infer_if_function_might_be_intended_as_a_classmethod_or_staticmethod(func)
+    if type_of_func == 'classmethod':
+        return classmethod(func)
+    elif type_of_func == 'staticmethod':
+        return staticmethod(func)
+    elif type_of_func == 'normal':
+        return func
 
 if __name__ == '__main__':
     import os
@@ -96,4 +124,3 @@ if __name__ == '__main__':
 
     for f in cumul:
         print(f)
-
