@@ -32,3 +32,5 @@ def mk_python_binder_from_method_funcs(method_specs, obj=None):
         inject_method(obj, method_func, method_name)
 
     return obj
+
+
