@@ -2,18 +2,15 @@ from __future__ import division
 
 import argparse
 import sys
-from itertools import zip_longest
 import inspect
+
+from i2i.util import no_default, arg_dflt_dict_of_callable
 
 
 # TODO: Separate mint
 # TODO: Make minting use a whitelist (inclusion list)
 
-class NoDefault(object):
-    pass
 
-
-no_default = NoDefault()
 
 
 def subparser_for_func(func, subparser_handle, func_name=None):
@@ -28,12 +25,10 @@ def subparser_for_func(func, subparser_handle, func_name=None):
     if func_name is None:
         func_name = func.__name__
 
-    argspec = inspect.getfullargspec(func)
     func_parser = subparser_handle.add_parser(func_name, help=inspect.getdoc(func))
     func_parser.set_defaults(which=func_name)
-    for arg, dflt in zip_longest((argspec.args or [])[::-1], (argspec.defaults or [])[::-1],
-                                 fillvalue=no_default):
-        # TODO: Figure out how to know for sure if we have a method or class method
+
+    for arg, dflt in arg_dflt_dict_of_callable(func):
         if arg == "self" or arg == "cls":  # TODO: Not completely safe. Make safer. See i2i.util
             pass
         elif dflt is no_default:

@@ -6,6 +6,72 @@ import inspect
 
 function_type = type(lambda x: x)  # using this instead of callable() because classes are callable, for instance
 
+NO_NAME = '_no_name'
+
+
+class NoDefault(object):
+    def __repr__(self):
+        return 'no_default'
+
+
+no_default = NoDefault()
+
+
+def arg_dflt_dict_of_callable(f):
+    """
+    Get a {arg_name: default_val, ...} dict from a callable.
+    See also :py:mint_of_callable:
+    :param f: A callable (function, method, ...)
+    :return:
+    """
+    argspec = inspect.getfullargspec(f)
+    args = argspec.args or []
+    defaults = argspec.defaults or []
+    return {arg: dflt for arg, dflt in zip(args, [no_default] * (len(args) - len(defaults)) + list(defaults))}
+
+
+def name_of_obj(o):
+    if hasattr(o, '__name__'):
+        return o.__name__
+    elif hasattr(o, '__class__'):
+        return name_of_obj(o.__class__)
+    else:
+        return NO_NAME
+
+
+# TODO: Expand so that use can specify what to include in the mint
+def mint_of_callable(f):
+    """
+    Get meta-data about a callable.
+    :param f: A callable (function, method, ...)
+    :return: A dict containing information about the interface of f, that is, name, module, doc, and input and output
+    information.
+    """
+    mint = {
+        'name': name_of_obj(f),  # TODO: Better NO_NAME or just not the name field?
+        'module': f.__module__,
+        'doc': inspect.getdoc(f)
+    }
+
+    argspec = inspect.getfullargspec(f)
+    annotations = argspec.annotations
+    input_specs = {}
+    args = argspec.args or []
+    defaults = argspec.defaults or []
+    for arg_name, dflt in zip(args, [no_default] * (len(args) - len(defaults)) + list(defaults)):
+        input_specs[arg_name] = {}
+        if dflt is not no_default:
+            input_specs[arg_name]['default'] = dflt
+        if arg_name in annotations:
+            input_specs[arg_name]['type'] = annotations[arg_name]
+
+    mint['input'] = input_specs
+
+    if 'return' in annotations:
+        mint['output'] = {'type': annotations['return']}
+
+    return mint
+
 
 def inject_method(self, method_function, method_name=None):
     if isinstance(method_function, function_type):
@@ -102,6 +168,7 @@ def decorate_as_staticmethod_or_classmethod_if_needed(func):
         return staticmethod(func)
     elif type_of_func == 'normal':
         return func
+
 
 if __name__ == '__main__':
     import os
