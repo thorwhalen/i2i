@@ -1,4 +1,4 @@
-from mint import mint_of_callable
+from i2i.pymint import mint_of_callable
 
 
 def test_callable(arg1, arg2: int) -> str:

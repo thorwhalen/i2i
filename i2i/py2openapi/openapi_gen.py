@@ -1,6 +1,6 @@
 import inspect
 
-from mint import mint_of_callable
+from i2i.pymint import mint_of_callable
 
 
 def str_list_or_dict(input_item):
