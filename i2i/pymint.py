@@ -1,6 +1,22 @@
 import inspect
 
 
+class AnyType(object):
+    def __repr__(self):
+        return 'AnyType'
+
+
+ANY_TYPE = AnyType()
+
+
+class NoTypeSpecified(object):
+    def __repr__(self):
+        return 'NoTypeSpecified'
+
+
+NO_TYPE_SPECIFIED = NoTypeSpecified()
+
+
 class NoDefault(object):
     def __repr__(self):
         return 'no_default'
@@ -9,6 +25,102 @@ class NoDefault(object):
 no_default = NoDefault()
 
 NO_NAME = '_no_name'
+
+import re
+import sys
+
+PARAM_OR_RETURNS_REGEX = re.compile(":(?:param|returns)")
+RETURNS_REGEX = re.compile(":returns: (?P<doc>.*)", re.S)
+PARAM_REGEX = re.compile(":param (?P<name>[\*\w]+): (?P<doc>.*?)"
+                         "(?:(?=:param)|(?=:return)|(?=:raises)|\Z)", re.S)
+
+
+def trim(docstring):
+    """trim function from PEP-257"""
+    if not docstring:
+        return ""
+    # Convert tabs to spaces (following the normal Python rules)
+    # and split into a list of lines:
+    lines = docstring.expandtabs().splitlines()
+    # Determine minimum indentation (first line doesn't count):
+    indent = sys.maxsize
+    for line in lines[1:]:
+        stripped = line.lstrip()
+        if stripped:
+            indent = min(indent, len(line) - len(stripped))
+    # Remove indentation (first line is special):
+    trimmed = [lines[0].strip()]
+    if indent < sys.maxsize:
+        for line in lines[1:]:
+            trimmed.append(line[indent:].rstrip())
+    # Strip off trailing and leading blank lines:
+    while trimmed and not trimmed[-1]:
+        trimmed.pop()
+    while trimmed and not trimmed[0]:
+        trimmed.pop(0)
+
+    # Current code/unittests expects a line return at
+    # end of multiline docstrings
+    # workaround expected behavior from unittests
+    if "\n" in docstring:
+        trimmed.append("")
+
+    # Return a single string:
+    return "\n".join(trimmed)
+
+
+def reindent(string):
+    return "\n".join(l.strip() for l in string.strip().split("\n"))
+
+
+def parse_docstring(docstring):
+    """Parse the docstring into its components.
+    :returns: a dictionary of form
+              {
+                  "short_description": ...,
+                  "long_description": ...,
+                  "params": [{"name": ..., "doc": ...}, ...],
+                  "returns": ...
+              }
+    """
+
+    short_description = long_description = returns = ""
+    params = []
+
+    if docstring:
+        docstring = trim(docstring)
+
+        lines = docstring.split("\n", 1)
+        short_description = lines[0]
+
+        if len(lines) > 1:
+            long_description = lines[1].strip()
+
+            params_returns_desc = None
+
+            match = PARAM_OR_RETURNS_REGEX.search(long_description)
+            if match:
+                long_desc_end = match.start()
+                params_returns_desc = long_description[long_desc_end:].strip()
+                long_description = long_description[:long_desc_end].rstrip()
+
+            if params_returns_desc:
+                params = [
+                    {"name": name, "doc": trim(doc)}
+                    for name, doc in PARAM_REGEX.findall(params_returns_desc)
+                    ]
+
+                match = RETURNS_REGEX.search(params_returns_desc)
+                if match:
+                    returns = reindent(match.group("doc"))
+
+    return {
+        "short_description": short_description,
+        "long_description": long_description,
+        "params": params,
+        "returns": returns
+    }
+
 
 valid_json_types = [str, dict, list, float, int, bool]
 
@@ -19,7 +131,7 @@ name_of_pytype = {
     float: 'float',
     int: 'int',
     bool: 'boolean',
-    '{}': '{}',
+    ANY_TYPE: '{}',
     None: '{}'
 }
 
@@ -47,6 +159,7 @@ def parse_mint_doc(doc: str) -> dict:
     cur_item_name = ''
     for line in split_doc:
         if line.startswith(':param'):
+            param_type = ANY_TYPE
             reading = PARAMS
             split_line = line.split(':')
             param_def = split_line[1]
@@ -55,12 +168,14 @@ def parse_mint_doc(doc: str) -> dict:
             if len(split_param_def) >= 3:
                 param_type = split_param_def[1]
                 param_name = split_param_def[2]
-                try:
-                    assert len(param_type) <= 5
-                    param_type = eval(param_type)
-                    assert param_type in valid_json_types
-                except Exception:
-                    param_type = '{}'
+
+                # TODO: Put validation externally, and avoid eval if possible
+                # try:
+                #     assert len(param_type) <= 5
+                #     param_type = eval(param_type)
+                #     assert param_type in valid_json_types
+                # except Exception:
+                #     pass
             elif len(split_param_def) == 2:
                 param_name = split_param_def[1]
             if param_name:
@@ -72,16 +187,18 @@ def parse_mint_doc(doc: str) -> dict:
             reading = RETURN
             split_line = line.split(':')
             return_type = split_line[1]
-            try:
-                assert len(return_type) <= 5
-                return_type = eval(return_type)
-                assert return_type in valid_json_types
-            except Exception:
-                return_type = '{}'
+
+            # TODO: Put validation externally, and avoid eval if possible
+            # try:
+            #     assert len(return_type) <= 5
+            #     return_type = eval(return_type)
+            #     assert return_type in valid_json_types
+            # except Exception:
+            #     return_type = ANY_TYPE
             return_value = {'type': return_type}
             return_value['description'] = ':'.join(split_line[2:]) \
                 if len(split_line) > 2 else ''
-        elif line.startswith(':tags'):
+        elif line.startswith(':tags'):  # TODO: Doesn't seem to be a valid spider doc key
             split_line = line.split(':')
             tags = split_line[1].replace(' ', '').split(',')
         else:
