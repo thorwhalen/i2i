@@ -2,7 +2,15 @@ from __future__ import division
 
 import inspect
 
-from i2i.util import no_default
+# from i2i.util import no_default
+
+class NoDefault(object):
+    def __repr__(self):
+        return 'no_default'
+
+
+no_default = NoDefault()
+
 
 NO_NAME = '_no_name'
 
@@ -23,6 +31,17 @@ def mint_of_callable(f):
     :param f: A callable (function, method, ...)
     :return: A dict containing information about the interface of f, that is, name, module, doc, and input and output
     information.
+    >>> import json
+    >>> mint = mint_of_callable(mint_of_callable)
+    >>> print(json.dumps(mint), indent=2)
+    {
+      "name": "mint_of_callable",
+      "module": "i2i.i2i.pymint",
+      "doc": "    Get meta-data about a callable.\n    :param f: A callable (function, method, ...)\n    :return: A dict containing information about the interface of f, that is, name, module, doc, and input and output\n    information.\n    >>> mint = mint_of_callable(mint_of_callable)\n    >>> expected_mint = {\n    ...     'name': 'mint_of_callable',\n    ...     'module': 'i2i.i2i.pymint',\n    ...     'doc': 'Get meta-data about a callable.\n:param f: A callable (function, method, ...)\n:return: A dict containing information about the interface of f, that is, name, module, doc, and input and output\ninformation.', 'input': {'f': {}}}\n\n    ",
+      "input": {
+        "f": {}
+      }
+    }
     """
     mint = {
         'name': name_of_obj(f),  # TODO: Better NO_NAME or just not the name field?
