@@ -1,4 +1,3 @@
-
 def test_func_1(any_var, an_int: int, a_float, a_bool: bool, a_str, a_list: list, a_dict: dict) -> str:
     """
     This is the first line,
@@ -29,11 +28,12 @@ def test_func_1(any_var, an_int: int, a_float, a_bool: bool, a_str, a_list: list
 class SomeClass(object):
     pass
 
+
 class SomeOtherClass(object):
     pass
 
 
-def test_func_2(any_var, an_int: int, a_float: 0.1, a_tuple: tuple=(),
+def test_func_2(any_var, an_int: int, a_float: 0.1, a_tuple: tuple = (),
                 an_obj: SomeClass = SomeClass(), another_obj=SomeOtherClass()):
     """
     This is the first line,
