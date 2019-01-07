@@ -1,6 +1,14 @@
 import inspect
 
 
+class Empty(object):
+    def __repr__(self):
+        return 'Empty'
+
+
+EMPTY = Empty()
+
+
 class AnyType(object):
     def __repr__(self):
         return 'AnyType'
@@ -280,6 +288,31 @@ def mint_of_callable(f):
         mint['output']['type'] = annotations['return']
     mint['output']['type'] = name_of_pytype[mint['output']['type']]
     return mint
+
+
+def parsed_parameters(parameters):
+    return [{'name': pp.name,
+             'annotation': pp.annotation,
+             'default': pp.default} for pp in parameters.values()]
+
+
+## Note: Alternatively, a version that uses a custom "empty" variable instead of inspect._empty
+## Note: Another alternative would be to not include the field if it's value is empty
+# explicit_empty = lambda x: EMPTY if x == inspect._empty else x
+# def parsed_parameters(parameters):
+#     return [{'name': pp.name,
+#              'annotation': explicit_empty(pp.annotation),
+#              'default': explicit_empty(pp.default)} for pp in p.values()]
+
+
+def parsed_signature(obj):
+    signature = inspect.signature(obj)
+    return {'name': name_of_obj(obj),
+            'type': type(obj),
+            'parameters': parsed_parameters(signature.parameters),
+            'return_annotation': signature.return_annotation
+            }
+
 
 
 """ TODO:
