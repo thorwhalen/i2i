@@ -278,7 +278,7 @@ def mint_of_callable(f):
         mint['output'] = doc_return
     if 'return' in annotations:
         mint['output']['type'] = annotations['return']
-
+    mint['output']['type'] = name_of_pytype[mint['output']['type']]
     return mint
 
 
@@ -287,4 +287,16 @@ def mint_of_callable(f):
     - indicate input argument constraints (min, max, enum, etc)
     - allow listing properties of complex objects as input arguments
         (eg argument a1 type is a dict with expected properties p1, p2, p3)
+    - allow description of complex return types (nested dicts)
 """
+
+
+def mint_many(input_construct) -> list:
+    if isinstance(input_construct, dict):
+        minted = [dict(mint_of_callable(item), name=name)
+                  for name, item in input_construct.items() if callable(item)]
+    else:
+        if inspect.isclass(input_construct):
+            input_construct = inspect.getmembers(input_construct, predicate=inspect.ismethod)
+        minted = [mint_of_callable(item) for item in input_construct if callable(item)]
+    return minted

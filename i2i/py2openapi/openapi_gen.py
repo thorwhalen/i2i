@@ -1,6 +1,11 @@
 import inspect
+import json
+import yaml
 
-from i2i.pymint import mint_of_callable
+from i2i.pymint import mint_many
+
+
+default_bad_request_description = 'Generic bad request response.'
 
 
 def str_list_or_dict(input_item):
@@ -13,7 +18,7 @@ def str_list_or_dict(input_item):
         return True
     if isinstance(input_item, list):
         for sub_item in input_item:
-            if not str_list_or_dict(item):
+            if not str_list_or_dict(input_item):
                 return False
         return True
     return False
@@ -66,13 +71,14 @@ def format_request_prop(input_param) -> dict:
     return dict(input_param, nullable=True)
 
 
-def make_openapi_path(mint) -> dict:
+def make_openapi_path(mint, **kwargs) -> dict:
+    bad_request_description = kwargs.get('bad_request_description', default_bad_request_description)
     name = mint.get('name')
     path_dict = {
         'post': {
             'description': mint['description'],
             'operationId': name,
-            'tags': mint['tags'],
+            'tags': mint.get('tags', []),
             'summary': mint['summary'],
             'requestBody': {
                 'content': {
@@ -86,6 +92,38 @@ def make_openapi_path(mint) -> dict:
                         }
                     }
                 }
+            },
+            'responses': {
+                '200': {
+                    'description': mint['output']['description'],
+                    'content': {
+                        'application/json': {
+                            'schema': {
+                                'type': mint['output']['type']
+                            }
+                        }
+                    }
+                },
+                '400': {
+                    'description': bad_request_description,
+                    'content': {
+                        'application/json': {
+                            'schema': {
+                                'type': 'string'
+                            }
+                        }
+                    }
+                },
+                '401': {
+                    'description': 'Unauthorized request',
+                    'content': {
+                        'application/json': {
+                            'schema': {
+                                'type': 'string'
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -93,17 +131,25 @@ def make_openapi_path(mint) -> dict:
 
 
 def make_openapi_spec(input_construct, title, **kwargs) -> dict:
-    if isinstance(input_construct, dict):
-        minted = [dict(mint_of_callable(item), name=name)
-                  for name, item in input_construct.items() if callable(item)]
-    else:
-        if inspect.isclass(input_construct):
-            input_construct = inspect.getmembers(input_construct, predicate=inspect.ismethod)
-        minted = [mint_of_callable(item) for item in input_construct if callable(item)]
+    minted = mint_many(input_construct)
     paths = {}
     for mint in minted:
-        pathname, spec = make_openapi_path(mint)
+        pathname, spec = make_openapi_path(mint, **kwargs)
         paths[pathname] = spec
     openapi_details = make_openapi_root_spec(title, **kwargs)
     openapi_spec = dict(openapi_details, paths=paths)
     return openapi_spec
+
+
+def make_and_save_openapi_json(input_construct, title, target_path='openapi.json', **kwargs):
+    spec = make_openapi_spec(input_construct, title, **kwargs)
+    serialized = json.dumps(spec)
+    with open(target_path, 'w') as fp:
+        fp.write(serialized)
+
+
+def make_and_save_openapi_yaml(input_construct, title, target_path='openapi.yml', **kwargs):
+    spec = make_openapi_spec(input_construct, title, **kwargs)
+    serialized = yaml.dump(spec)
+    with open(target_path, 'w') as fp:
+        fp.write(serialized)
