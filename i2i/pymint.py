@@ -241,7 +241,15 @@ def parse_mint_doc(doc: str) -> dict:
 #         "f": {}
 #       }
 #     }
-def mint_of_callable(f):
+
+
+def mint_of_instance_method(base_class, method):
+    constructor_mint = mint_of_callable(base_class.__init__, ismethod=True)
+    method_mint = mint_of_callable(method, ismethod=True)
+    return dict(method_mint, input=dict(method_mint['input'], **constructor_mint['input']))
+
+
+def mint_of_callable(f, ismethod=False):
     """
     Get meta-data about a callable.
     :param f: A callable (function, method, ...)
@@ -249,44 +257,47 @@ def mint_of_callable(f):
     information.
     """
     raw_doc = inspect.getdoc(f)
-    parsed_doc = parse_mint_doc(raw_doc)
-    doc_inputs = parsed_doc['inputs']
-    doc_return = parsed_doc['return']
+    # parsed_doc = parse_mint_doc(raw_doc)
+    # doc_inputs = parsed_doc['inputs']
+    # doc_return = parsed_doc['return']
     mint = {
         'name': name_of_obj(f),  # TODO: Better NO_NAME or just not the name field?
         'module': f.__module__,
         'doc': raw_doc,
-        'description': parsed_doc['description'] or '',
-        'summary': parsed_doc['summary'],
-        'tags': parsed_doc['tags']
+        # 'description': parsed_doc['description'] or '',
+        # 'summary': parsed_doc['summary'],
+        # 'tags': parsed_doc['tags']
     }
 
     argspec = inspect.getfullargspec(f)
     annotations = argspec.annotations
     input_specs = {}
     args = argspec.args or []
+    if len(args) > 0 and (ismethod or inspect.ismethod(f)):
+        args = args[1:]
     defaults = argspec.defaults or []
     for arg_name, dflt in zip(args, [no_default] * (len(args) - len(defaults)) + list(defaults)):
         input_specs[arg_name] = {}
         if dflt is not no_default:
             input_specs[arg_name]['default'] = dflt
-        if arg_name in doc_inputs:
-            doc_input_arg = doc_inputs[arg_name]
-            input_specs[arg_name]['type'] = doc_input_arg['type']
-            input_specs[arg_name]['description'] = doc_input_arg['description']
+        # if arg_name in doc_inputs:
+        #     doc_input_arg = doc_inputs[arg_name]
+        #     input_specs[arg_name]['type'] = doc_input_arg['type']
+        #     input_specs[arg_name]['description'] = doc_input_arg['description']
         if arg_name in annotations:
             input_specs[arg_name]['type'] = annotations[arg_name]
-        if input_specs[arg_name]['type']:
+        if input_specs[arg_name].get('type', None):
             input_specs[arg_name]['type'] = name_of_pytype.get(input_specs[arg_name]['type'], '{}')
 
     mint['input'] = input_specs
 
     mint['output'] = {}
-    if doc_return:
-        mint['output'] = doc_return
+    # if doc_return:
+    #     mint['output'] = doc_return
     if 'return' in annotations:
         mint['output']['type'] = annotations['return']
-    mint['output']['type'] = name_of_pytype[mint['output']['type']]
+    if mint['output'].get('type'):
+        mint['output']['type'] = name_of_pytype[mint['output']['type']]
     return mint
 
 
@@ -314,7 +325,6 @@ def parsed_signature(obj):
             }
 
 
-
 """ TODO:
     - indicate required/optional or nullable input arguments
     - indicate input argument constraints (min, max, enum, etc)
@@ -328,8 +338,12 @@ def mint_many(input_construct) -> list:
     if isinstance(input_construct, dict):
         minted = [dict(mint_of_callable(item), name=name)
                   for name, item in input_construct.items() if callable(item)]
+    elif inspect.isclass(input_construct):
+        method_list = [getattr(input_construct, funcname) for funcname in dir(input_construct)
+                       if callable(getattr(input_construct, funcname)) and
+                       not funcname.startswith('__')]
+        minted = [mint_of_instance_method(input_construct, method) for method in method_list]
     else:
-        if inspect.isclass(input_construct):
-            input_construct = inspect.getmembers(input_construct, predicate=inspect.ismethod)
-        minted = [mint_of_callable(item) for item in input_construct if callable(item)]
+        minted = [mint_of_callable(item) for item in input_construct
+                  if callable(item)]
     return minted
