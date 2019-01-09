@@ -15,19 +15,6 @@ class NoDefault(object):
 no_default = NoDefault()
 
 
-def arg_dflt_dict_of_callable(f):
-    """
-    Get a {arg_name: default_val, ...} dict from a callable.
-    See also :py:mint_of_callable:
-    :param f: A callable (function, method, ...)
-    :return:
-    """
-    argspec = inspect.getfullargspec(f)
-    args = argspec.args or []
-    defaults = argspec.defaults or []
-    return {arg: dflt for arg, dflt in zip(args, [no_default] * (len(args) - len(defaults)) + list(defaults))}
-
-
 def inject_method(self, method_function, method_name=None):
     if isinstance(method_function, function_type):
         if method_name is None:
@@ -45,6 +32,101 @@ def inject_method(self, method_function, method_name=None):
                 self = inject_method(self, method)
 
     return self
+
+
+def transform_args(**trans_func_for_arg):
+    """
+    Make a decorator that transforms function arguments before calling the function.
+    For example:
+        * original argument: a relative path --> used argument: a full path
+        * original argument: a pickle filepath --> used argument: the loaded object
+    :param rootdir: rootdir to be used for all name arguments of target function
+    :param name_arg: the position (int) or argument name of the argument containing the name
+    :return: a decorator
+    >>> def f(a, b, c):
+    ...     return "a={a}, b={b}, c={c}".format(a=a, b=b, c=c)
+    >>>
+    >>> print(f('foo', 'bar', 3))
+    a=foo, b=bar, c=3
+    >>> ff = transform_args()(f)
+    >>> print(ff('foo', 'bar', 3))
+    a=foo, b=bar, c=3
+    >>> ff = transform_args(a=lambda x: 'ROOT/' + x)(f)
+    >>> print(ff('foo', 'bar', 3))
+    a=ROOT/foo, b=bar, c=3
+    >>> ff = transform_args(b=lambda x: 'ROOT/' + x)(f)
+    >>> print(ff('foo', 'bar', 3))
+    a=foo, b=ROOT/bar, c=3
+    >>> ff = transform_args(a=lambda x: 'ROOT/' + x, b=lambda x: 'ROOT/' + x)(f)
+    >>> print(ff('foo', b='bar', c=3))
+    a=ROOT/foo, b=ROOT/bar, c=3
+    """
+
+    def transform_args_decorator(func):
+        if len(trans_func_for_arg) == 0:  # if no transformations were specified...
+            return func  # just return the function itself
+        else:
+            @wraps(func)
+            def transform_args_wrapper(*args, **kwargs):
+                # get a {argname: argval, ...} dict from *args and **kwargs
+                # Note: Didn't really need an if/else here but...
+                # Note: ... assuming getcallargs gives us an overhead that can be avoided if there's only keyword args.
+                if len(args) > 0:
+                    val_of_argname = inspect.getcallargs(func, *args, **kwargs)
+                else:
+                    val_of_argname = kwargs
+                # apply transform functions to argument values
+                for argname, trans_func in trans_func_for_arg.items():
+                    val_of_argname[argname] = trans_func(val_of_argname[argname])
+                # call the function with transformed values
+                return func(**val_of_argname)
+
+            return transform_args_wrapper
+
+    return transform_args_decorator
+
+
+def resolve_filepath_of_name(name_arg=None, rootdir=''):
+    """
+    Make a decorator that applies a function to an argument before using it.
+    For example:
+        * original argument: a relative path --> used argument: a full path
+        * original argument: a pickle filepath --> used argument: the loaded object
+    :param rootdir: rootdir to be used for all name arguments of target function
+    :param name_arg: the position (int) or argument name of the argument containing the name
+    :return: a decorator
+    >>> def f(a, b, c):
+    ...     return "a={a}, b={b}, c={c}".format(a=a, b=b, c=c)
+    >>>
+    >>> print(f('foo', 'bar', 3))
+    a=foo, b=bar, c=3
+    >>> ff = resolve_filepath_of_name()(f)
+    >>> print(ff('foo', 'bar', 3))
+    a=foo, b=bar, c=3
+    >>> ff = resolve_filepath_of_name('a', 'ROOT')(f)
+    >>> print(ff('foo', 'bar', 3))
+    a=ROOT/foo, b=bar, c=3
+    >>> ff = resolve_filepath_of_name('b', 'ROOT')(f)
+    >>> print(ff('foo', 'bar', 3))
+    a=foo, b=ROOT/bar, c=3
+    """
+    if name_arg is not None:
+        return transform_args(**{name_arg: lambda x: os.path.join(rootdir, x)})
+    else:
+        return lambda x: x
+
+
+def arg_dflt_dict_of_callable(f):
+    """
+    Get a {arg_name: default_val, ...} dict from a callable.
+    See also :py:mint_of_callable:
+    :param f: A callable (function, method, ...)
+    :return:
+    """
+    argspec = inspect.getfullargspec(f)
+    args = argspec.args or []
+    defaults = argspec.defaults or []
+    return {arg: dflt for arg, dflt in zip(args, [no_default] * (len(args) - len(defaults)) + list(defaults))}
 
 
 def add_self_as_first_argument(func):

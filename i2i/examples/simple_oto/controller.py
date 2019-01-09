@@ -1,5 +1,5 @@
 import os
-
+import attr
 from typing import Tuple, List, Dict, NamedTuple, Any, Callable, Union
 from i2i.examples.simple_oto.util import mean_intensity, mean_zero_crossing, simple_fixed_step_chunker
 from i2i.util import resolve_filepath_of_name
@@ -28,6 +28,7 @@ import json
 DFLT_CHK_SIZE = 21 * 2048
 
 
+
 def dflt_dump_wfsr(wfsr: WfSr, wf_name: str):
     return sf.write(wf_name, data=wfsr[0], samplerate=wfsr[1], subtype='PCM_16')
 
@@ -40,42 +41,25 @@ def dflt_featurizer(chk):
     return [mean_intensity(chk), mean_zero_crossing(chk)]
 
 
-# directory resolution
-
-app_data_root = os.path.expanduser('~/simple_oto')
-# app_data_root = None
-if app_data_root:
-    wav_dir = os.path.join(app_data_root, 'wav_files')
-    annots_dir = os.path.join(app_data_root, 'annots')
-    models_dir = os.path.join(app_data_root, 'models')
-
-    for dirpath in [app_data_root, wav_dir, annots_dir, models_dir]:
-        if not os.path.isdir(dirpath):
-            os.mkdir(dirpath)
-else:
-    wav_dir, annots_dir, models_dir = [None] * 3
+class SimpleOto(object):
+    def dump_wfsr(self, wfsr: WfSr, wf_name: str):
+        """Store the wfsr under given name"""
+        return dflt_dump_wfsr(wfsr, wf_name)
 
 
-# source io
-@resolve_filepath_of_name(wav_dir, 'wf_name')
-def dump_wfsr(wfsr: WfSr, wf_name: str):
-    """Store the wfsr under given name"""
-    return dflt_dump_wfsr(wfsr, wf_name)
-
-
-@resolve_filepath_of_name(wav_dir, 'wf_name')
+# @resolve_filepath_of_name(wav_dir, 'wf_name')
 def load_wfsr(wf_name: str) -> WfSr:
     """Load the wav file, returning the waveform and sample rate"""
     return dflt_load_wfsr(wf_name)
 
 
 # annotations io
-@resolve_filepath_of_name(annots_dir, 'annots_name')
+# @resolve_filepath_of_name(annots_dir, 'annots_name')
 def load_annotations(annots_name: str) -> Annotations:
     return json.load(open(annots_name))
 
 
-@resolve_filepath_of_name(annots_dir, 'annots_name')
+# @resolve_filepath_of_name(annots_dir, 'annots_name')
 def dump_annotations(annots: Annotations, annots_name: str):
     return json.dump(annots, open(annots_name, 'w'))
 
@@ -91,7 +75,6 @@ def load_featurizer(featurizer_name: str = None) -> Featurizer:
 
 # def _file_tags_gen(file_tags_name: str, tags: List[str]):
 #     file_tags = load_file_tags(file_tags_name)
-
 
 #     for
 
@@ -137,3 +120,7 @@ def run_model_on_file(file_name: str, featurizer: Featurizer, fv_model: FvModel,
 
 # alternative using decorator
 # run_model_on_file = use_loader(run_model_on_file, load_wf)
+
+@attr.s
+class Controller(object):
+    audio_store = attr.ib()
