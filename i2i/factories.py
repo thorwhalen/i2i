@@ -1,5 +1,4 @@
 import inspect
-from functools import wraps
 
 
 def method_for_func(func, self_attrs=(), excluded_args=()):
@@ -55,6 +54,9 @@ def method_for_func(func, self_attrs=(), excluded_args=()):
     return method
 
 # NOTE: A version where I started to try to handle excluded_args and args
+#
+# from functools import wraps
+#
 # def method_for_func(func, self_attrs=(), excluded_args=()):
 #     """
 #     A function that will make an 'intended to be bounded method' from a function.
