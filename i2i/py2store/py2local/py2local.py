@@ -133,7 +133,8 @@ class LocalKeyValPersister(LocalFileDeletionMixin, KeyValPersister, IterableDirM
 def mk_local_persister(rootdir: str,
                        ext: str = '',
                        file_write_mode='w',
-                       file_read_mode='r'):
+                       file_read_mode='r',
+                       mkdir=False):
     """
     Make a data store that works with local files.
 
@@ -178,7 +179,8 @@ def mk_local_persister(rootdir: str,
     file_sep = os.path.sep
     if rootdir.endswith(file_sep):
         rootdir = rootdir[:-1]
-
+    if mkdir and not os.path.exists(rootdir):
+        os.mkdir(rootdir)
     persister = LocalKeyValPersister(rootdir, ext, file_write_mode, file_read_mode)
     return persister
 

@@ -1,6 +1,5 @@
-
 def test_func_1(any_var, a_list: list, a_dict: dict, an_int: int,
-                a_float: float=3.14, a_bool=True, a_str: str=None) -> str:
+                a_float: float = 3.14, a_bool=True, a_str: str = None) -> str:
     """
     This is the first line,
     continued on the next.
@@ -34,7 +33,7 @@ class SomeOtherClass(object):
     pass
 
 
-def test_func_2(any_var, an_int: int, a_float: 0.1, a_tuple: tuple = (),
+def test_func_2(any_var, an_int: int, a_float=0.1, a_tuple: tuple = (),
                 an_obj: SomeClass = SomeClass(), another_obj=SomeOtherClass()):
     """
     This is the first line,
