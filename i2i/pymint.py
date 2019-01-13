@@ -284,6 +284,9 @@ def mint_of_callable(f, ismethod=False):
         #     doc_input_arg = doc_inputs[arg_name]
         #     input_specs[arg_name]['type'] = doc_input_arg['type']
         #     input_specs[arg_name]['description'] = doc_input_arg['description']
+
+        # TODO: It's probaby better to keep the ming closer to the original data
+        # TODO: For example, an annotation could be something else than a type
         if arg_name in annotations:
             input_specs[arg_name]['type'] = annotations[arg_name]
         if input_specs[arg_name].get('type', None):
