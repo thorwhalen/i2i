@@ -268,7 +268,7 @@ class LocalFileObjSource(ObjSource):
         if path_format == self._rootdir:  # if the path_format is equal to the _rootdir (i.e. there's no {} formatting)
             path_format += '{}'  # ... add a formatting element so that the matcher can match all subfiles.
         self._path_match_re = match_re_for_fstring(path_format)
-
+        self._path_format = path_format
         self._contents_of_file = contents_of_file
 
     @classmethod
