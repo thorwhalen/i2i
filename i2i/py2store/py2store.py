@@ -70,13 +70,13 @@ class KeyValPersister(object):
 class ObjStore(object):
     """
     A class that implements object storage. Usually for objects of a specific type at a specific location.
-    The object story is defined by the specification of how to resolve a path (full location specification) from
+    The object store is defined by the specification of how to resolve a path (full location specification) from
     a specification of a location, how to serialize/deserialize an object, and how to dump/load
     these serializations.
 
     This class is meant to be used in situations where a program needs to store and load various resources, and may
     need to handle different resources in different ways, or keep the interface of storage abstract enough to be
-    able to be changed easily. The suggested use is to define an ObjStore for each
+    able to be changed easily. The suggested use is to define an ObjStore for each.
     In most situations, several types of resources are needed. In this case, it is suggested that one make an obj store
     for each type of objects.
 

@@ -2,6 +2,7 @@ from glob import iglob
 import os
 import re
 from typing import Callable, Union, Any
+import soundfile as sf  # TODO: Replace by another wav reader, and move to another module
 from functools import wraps
 from i2i.py2store.obj_source import ObjSource
 from i2i.py2store.parse_format import match_re_for_fstring
@@ -77,8 +78,6 @@ def _mk_file_reader_for_wav(dtype='int16', wf_only=True, assert_sr=None, **kwarg
     By default, the dtype of the numpy array returned is int16, unless otherwise specified.
     All other kwargs are those from the signature of soundfile.read function, pasted below.
     """
-    import soundfile as sf
-
     if assert_sr is not None:
         assert isinstance(assert_sr, int), "assert_sr must be an int"
 
@@ -145,7 +144,8 @@ def _mk_file_read_for_pickle(open_kwargs=None, fix_imports=True, encoding='ASCII
 
 _file_reader_for_kind = {
     'dflt': _mk_file_reader_for_dflt,
-    'wav': _mk_file_reader_for_wav,
+    'wav': _mk_file_reader_for_wav,  # TODO: Deprecate and use wav_wf instead
+    'wav_wf': _mk_file_reader_for_wav,
     'json': _mk_file_read_for_json,
     'pickle': _mk_file_read_for_pickle
 }
@@ -181,8 +181,11 @@ class LocalFileObjSource(ObjSource):
     >>> rootdir = os.path.join(gettempdir(), 'obj_source_test')
     >>> # recreate directory (remove existing files, delete directory, and re-create it)
     >>> for f in os.listdir(rootdir):
-    ...    os.remove(os.path.join(rootdir, f))
-    >>> os.rmdir(rootdir)
+    ...     fullpath = os.path.join(rootdir, f)
+    ...     if os.path.isfile(fullpath):
+    ...         os.remove(os.path.join(rootdir, f))
+    >>> if os.path.isdir(rootdir):
+    ...     os.rmdir(rootdir)
     >>> if not os.path.isdir(rootdir):
     ...    os.mkdir(rootdir)
     >>>
@@ -247,17 +250,11 @@ class LocalFileObjSource(ObjSource):
 
     def __init__(self, path_format: str, contents_of_file: Callable[[str], Any] = dflt_contents_of_file):
         """
-        Make a LocalFileObjSource instance with rootdir as the root directory of the files.
+
         :param path_format: The f-string format that the fullpath keys of the obj source should have.
             Often, just the root directory whose FILES contain the (full_filepath, content) data
             Also common is to use path_format='{rootdir}/{relative_path}.EXT' to impose a specific extension EXT
-        :param mode: Used in open(filepath, ...) function to read contents from a filepath
-        :param buffering: Used in open(filepath, ...) function to read contents from a filepath
-        :param encoding: Used in open(filepath, ...) function to read contents from a filepath
-        :param errors: Used in open(filepath, ...) function to read contents from a filepath
-        :param newline: Used in open(filepath, ...) function to read contents from a filepath
-        :param closefd: Used in open(filepath, ...) function to read contents from a filepath
-        :param opener: Used in open(filepath, ...) function to read contents from a filepath
+        :param contents_of_file: The function that returns the python object stored at a given key (path)
         """
         if '{' not in path_format:
             self._rootdir = path_format
@@ -308,7 +305,7 @@ class LocalFileObjSource(ObjSource):
         try:
             return self._contents_of_file(k)
         except Exception as e:
-            raise KeyError("KeyError created by {}: {}".format(e.__class__.__name__, e))
+            raise KeyError("KeyError in {} when trying to __getitem__({}): {}".format(e.__class__.__name__, k, e))
 
     def __len__(self):
         # TODO: Use itertools, or some other means to more quickly count files
