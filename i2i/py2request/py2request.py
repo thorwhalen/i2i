@@ -59,14 +59,72 @@ DFLT_METHOD_FUNC_FROM_METHOD_SPEC = mk_request_function
 
 
 class Py2Request(object):
-    def __init__(self, method_specs, method_func_from_method_spec=DFLT_METHOD_FUNC_FROM_METHOD_SPEC):
+    """ Make a class that has methods that offer a python interface to web requests """
+
+    def __init__(self, method_specs=None,  # imdict is just a dict made immutable
+                 method_func_from_method_spec=DFLT_METHOD_FUNC_FROM_METHOD_SPEC):
+        """
+        Initialize the object with web request calling methods.
+        You can also just make an empty Py2Request object, and inject methods later on, one by one.
+
+
+        :param method_specs:  A {method_name: method_spec,...} dict that specifies
+            what methods to create (the method_name part) and what that method should do (the method_spec part).
+            Notice that there's no restriction on method_specs, but by default (becauise
+        :param method_func_from_method_spec: The function that makes an actual method (function, which will be bounded)
+            from the method_specs
+
+        Notice that there's no restriction on the method_spec (singular) values of the method_specs dict.
+        Indeed, it could be any object that is understood by the method_func_from_method_spec function, that
+        would result in a function that can be "injected" as a method of Py2Request.
+
+        >>> import re
+        >>> from collections import Counter
+        >>> # Defining the functions we'll use
+        >>> def print_content(r):
+        ...     print(r.text)
+        >>> def dict_of_json(r):
+        ...     return json.loads(r.content)
+        >>> tokenizer = re.compile('\w+').findall
+        >>> # Defining the specs
+        >>> method_specs = {
+        ...     'google_google': {
+        ...         'request_kwargs': {
+        ...             'url': 'https://www.google.com/search?q=google'
+        ...         }
+        ...     },
+        ...     'search_google': {
+        ...         'url_template': 'https://www.google.com/search?q={search_term}',
+        ...         'output_trans': lambda r: r.text
+        ...     },
+        ...     'search_google_and_count_tokens': {
+        ...         'url_template': 'https://www.google.com/search?q={search_term}',
+        ...         'output_trans': lambda r: Counter(tokenizer(r.text)).most_common()
+        ...     },
+        ...     'my_ip': {
+        ...         'url_template': 'https://api.ipify.org?format=json',
+        ...         'output_trans': dict_of_json
+        ...     },
+        ...     'print_ip_location': {
+        ...         'url_template': 'http://ip-api.com/#{ip_address}',
+        ...         'output_trans': print_content
+        ...     },
+        ... }
+        >>> pr = Py2Request(method_specs=method_specs)
+        >>> html = pr.search_google(search_term='convention over configuration')
+        >>> html[:14]
+        '<!doctype html'
+        >>> # And I'll let the reader try the other requests, whose results are not stable enough to test like this
+
+        """
+        self._dflt_method_func_from_method_spec = method_func_from_method_spec
         for method_name, method_spec in method_specs.items():
             self.inject_method(method_name, method_spec, method_func_from_method_spec)
 
     def inject_method(self, method_name, method_spec, method_func_from_method_spec=None):
         if not callable(method_spec):
             if method_func_from_method_spec is None:
-                raise ValueError("You need a method_func_from_method_spec")
+                method_func_from_method_spec = self._dflt_method_func_from_method_spec
             method_spec = method_func_from_method_spec(method_spec)
         inject_method(self, method_spec, method_name)
 
