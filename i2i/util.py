@@ -15,6 +15,22 @@ class NoDefault(object):
 no_default = NoDefault()
 
 
+class imdict(dict):
+    def __hash__(self):
+        return id(self)
+
+    def _immutable(self, *args, **kws):
+        raise TypeError('object is immutable')
+
+    __setitem__ = _immutable
+    __delitem__ = _immutable
+    clear = _immutable
+    update = _immutable
+    setdefault = _immutable
+    pop = _immutable
+    popitem = _immutable
+
+
 def inject_method(self, method_function, method_name=None):
     if isinstance(method_function, function_type):
         if method_name is None:

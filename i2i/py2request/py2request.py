@@ -2,10 +2,11 @@ from __future__ import division
 
 from i2i.util import inject_method
 from requests import request
+from i2i.util import imdict
 
 DFLT_PORT = 5000
 DFLT_BASE_URL = 'http://localhost:{port}'.format(port=DFLT_PORT)
-DFLT_REQUEST_KWARGS = {'method': 'GET', 'url': ''}
+DFLT_REQUEST_KWARGS = imdict({'method': 'GET', 'url': ''})
 
 
 def mk_default_completion_validator(dflt_kwargs=DFLT_REQUEST_KWARGS):
