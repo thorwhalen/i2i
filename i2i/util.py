@@ -32,6 +32,12 @@ class imdict(dict):
 
 
 def inject_method(self, method_function, method_name=None):
+    """
+    method_function could be:
+        * a function
+        * a {method_name: function, ...} dict (for multiple injections)
+        * a list of functions or (function, method_name) pairs
+    """
     if isinstance(method_function, function_type):
         if method_name is None:
             method_name = method_function.__name__
