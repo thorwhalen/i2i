@@ -1,5 +1,3 @@
-from __future__ import division
-
 from i2i.util import inject_method
 from requests import request
 from i2i.util import imdict
@@ -7,6 +5,11 @@ from i2i.util import imdict
 DFLT_PORT = 5000
 DFLT_BASE_URL = 'http://localhost:{port}'.format(port=DFLT_PORT)
 DFLT_REQUEST_KWARGS = imdict({'method': 'GET', 'url': ''})
+
+
+class DebugOptions:
+    print_request_kwargs = 'print_request_kwargs'
+    return_request_kwargs = 'return_request_kwargs'
 
 
 def mk_default_completion_validator(dflt_kwargs=DFLT_REQUEST_KWARGS):
@@ -23,6 +26,7 @@ def all_necessary_fields_validator(kwargs):
 
 def mk_request_function(method_spec):
     # defaults
+    method_spec = method_spec.copy()
     method_spec['request_kwargs'] = method_spec.get('request_kwargs', {})
     method_spec['request_kwargs']['method'] = method_spec['request_kwargs'].get('method', 'GET')
 
@@ -46,6 +50,13 @@ def mk_request_function(method_spec):
 
         if json_data:
             request_kwargs = dict(request_kwargs, json=json_data)
+
+        if 'debug' in method_spec:
+            debug = method_spec['debug']
+            if debug == 'print_request_kwargs':
+                print(request_kwargs)
+            elif debug == 'return_request_kwargs':
+                return request_kwargs
 
         r = request(**request_kwargs)
         if 'output_trans' in method_spec:
