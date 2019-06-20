@@ -1,3 +1,4 @@
+from functools import wraps
 from i2i.util import inject_method
 from requests import request
 from i2i.util import imdict
@@ -5,6 +6,10 @@ from i2i.util import imdict
 DFLT_PORT = 5000
 DFLT_BASE_URL = 'http://localhost:{port}'.format(port=DFLT_PORT)
 DFLT_REQUEST_KWARGS = imdict({'method': 'GET', 'url': ''})
+
+
+def identity_func(x):
+    return x
 
 
 class DebugOptions:
@@ -24,13 +29,45 @@ def all_necessary_fields_validator(kwargs):
     return kwargs
 
 
+def _ensure_list(x):
+    if isinstance(x, str):
+        return [x]
+    return x
+
+
 def mk_request_function(method_spec):
+    """
+    Makes function that will make http requests for you, on your own terms.
+
+    Specify what API you want to talk to, and how you want to talk to it (and it talk back to you), and
+    get a function that does exactly that.
+
+    Essentially, this factory function allows you to take an API specification, specify how you want it to
+    relate to python objects (how to convert input arguments to API elements, and how to convert the response of
+    the request, for instance), and get a method that is ready to be used.
+
+    :param method_spec: Specification of how to convert arguments of the function that is being made to an http request.
+    :return: A function.
+        Note: I say "function", but the function is meant to be a method, so the function has a self as first argument.
+        That argument is ignored.
+
+    """
     # defaults
     method_spec = method_spec.copy()
     method_spec['request_kwargs'] = method_spec.get('request_kwargs', {})
     method_spec['request_kwargs']['method'] = method_spec['request_kwargs'].get('method', 'GET')
+    arg_order = _ensure_list(method_spec.get('args', []))
 
-    def request_func(self, **kwargs):
+    # TODO: inject a signature, and possibly a __doc__ in this function
+    def request_func(self, *args, **kwargs):
+
+        # absorb args in kwargs
+        if len(args) > len(arg_order):
+            raise ValueError(
+                f"The number ({len(args)}) of unnamed arguments was greater than "
+                f"the number ({len(arg_order)}of specified arguments in arg_order")
+
+        kwargs = dict(kwargs, **{argname: argval for argname, argval in zip(arg_order, args)})
 
         # convert argument types TODO: Not efficient. Might could be revised.
         for arg_name, converter in method_spec.get('input_trans', {}).items():
@@ -42,14 +79,15 @@ def mk_request_function(method_spec):
             if arg_name in kwargs:
                 json_data[arg_name] = kwargs.pop(arg_name)
 
+        # making the request_kwargs ####################################################################################
+        request_kwargs = method_spec['request_kwargs']
         if 'url_template' in method_spec:
-            request_kwargs = dict(method_spec['request_kwargs'],
-                                  url=method_spec['url_template'].format(**kwargs))
-        else:
-            request_kwargs = method_spec['request_kwargs']
+            request_kwargs['url'] = method_spec['url_template'].format(**kwargs)
+        elif 'url' in method_spec:
+            request_kwargs['url'] = method_spec['url']
 
         if json_data:
-            request_kwargs = dict(request_kwargs, json=json_data)
+            request_kwargs['json'] = json_data
 
         if 'debug' in method_spec:
             debug = method_spec['debug']
@@ -63,8 +101,82 @@ def mk_request_function(method_spec):
             r = method_spec['output_trans'](r)
         return r
 
+    if 'wraps' in method_spec:
+        return wraps(method_spec['wraps'])(request_func)
+
     return request_func
 
+
+def mk_request_method(method_spec):
+    """
+    Makes function that will make http requests for you, on your own terms.
+
+    Specify what API you want to talk to, and how you want to talk to it (and it talk back to you), and
+    get a function that does exactly that.
+
+    Essentially, this factory function allows you to take an API specification, specify how you want it to
+    relate to python objects (how to convert input arguments to API elements, and how to convert the response of
+    the request, for instance), and get a method that is ready to be used.
+
+    :param method_spec: Specification of how to convert arguments of the function that is being made to an http request.
+    :return: A function.
+        Note: I say "function", but the function is meant to be a method, so the function has a self as first argument.
+        That argument is ignored.
+
+    """
+    # defaults
+    method_spec = method_spec.copy()
+    method_spec['request_kwargs'] = method_spec.get('request_kwargs', {})
+    method_spec['request_kwargs']['method'] = method_spec['request_kwargs'].get('method', 'GET')
+    arg_order = _ensure_list(method_spec.get('args', []))
+
+    # TODO: inject a signature, and possibly a __doc__ in this function
+    def request_method(self, *args, **kwargs):
+
+        # absorb args in kwargs
+        if len(args) > len(arg_order):
+            raise ValueError(
+                f"The number ({len(args)}) of unnamed arguments was greater than "
+                f"the number ({len(arg_order)}of specified arguments in arg_order")
+
+        kwargs = dict(kwargs, **{argname: argval for argname, argval in zip(arg_order, args)})
+
+        # convert argument types TODO: Not efficient. Might could be revised.
+        for arg_name, converter in method_spec.get('input_trans', {}).items():
+            if arg_name in kwargs:
+                kwargs[arg_name] = converter(kwargs[arg_name])
+
+        json_data = {}
+        for arg_name in method_spec.get('json_arg_names', []):
+            if arg_name in kwargs:
+                json_data[arg_name] = kwargs.pop(arg_name)
+
+        # making the request_kwargs ####################################################################################
+        request_kwargs = method_spec['request_kwargs']
+        if 'url_template' in method_spec:
+            request_kwargs['url'] = method_spec['url_template'].format(**kwargs)
+        elif 'url' in method_spec:
+            request_kwargs['url'] = method_spec['url']
+
+        if json_data:
+            request_kwargs['json'] = json_data
+
+        if 'debug' in method_spec:
+            debug = method_spec['debug']
+            if debug == 'print_request_kwargs':
+                print(request_kwargs)
+            elif debug == 'return_request_kwargs':
+                return request_kwargs
+
+        r = request(**request_kwargs)
+        if 'output_trans' in method_spec:
+            r = method_spec['output_trans'](r)
+        return r
+
+    if 'wraps' in method_spec:
+        return wraps(method_spec['wraps'])(request_method)
+
+    return request_method
 
 DFLT_METHOD_FUNC_FROM_METHOD_SPEC = mk_request_function
 
@@ -106,7 +218,8 @@ class Py2Request(object):
         ...     },
         ...     'search_google': {
         ...         'url_template': 'https://www.google.com/search?q={search_term}',
-        ...         'output_trans': lambda r: r.text
+        ...         'args': ['search_term'],  # only needed if you want to use unnamed arguments in your method
+        ...         'output_trans': lambda r: r.text,
         ...     },
         ...     'search_google_and_count_tokens': {
         ...         'url_template': 'https://www.google.com/search?q={search_term}',
@@ -122,7 +235,7 @@ class Py2Request(object):
         ...     },
         ... }
         >>> pr = Py2Request(method_specs=method_specs)
-        >>> html = pr.search_google(search_term='convention over configuration')
+        >>> html = pr.search_google('convention over configuration')
         >>> html[:14]
         '<!doctype html'
         >>> # And I'll let the reader try the other requests, whose results are not stable enough to test like this
