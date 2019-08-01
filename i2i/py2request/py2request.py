@@ -2,6 +2,7 @@ from functools import wraps
 from i2i.util import inject_method
 from requests import request
 from i2i.util import imdict
+from py2mint.signatures import set_signature_of_func
 
 DFLT_PORT = 5000
 DFLT_BASE_URL = 'http://localhost:{port}'.format(port=DFLT_PORT)
@@ -103,6 +104,10 @@ def mk_request_function(method_spec):
 
     if 'wraps' in method_spec:
         return wraps(method_spec['wraps'])(request_func)
+    else:
+        all_args = method_spec.get('args', []) + method_spec.get('json_arg_names', [])
+        if all_args:
+            set_signature_of_func(request_func, ['self'] + all_args)
 
     return request_func
 
@@ -174,9 +179,14 @@ def mk_request_method(method_spec):
         return r
 
     if 'wraps' in method_spec:
-        return wraps(method_spec['wraps'])(request_method)
+        wraps(method_spec['wraps'])(request_method)
+    else:
+        all_args = method_spec.get('args', []) + method_spec.get('json_arg_names', [])
+        if all_args:
+            set_signature_of_func(request_method, ['self'] + all_args)
 
     return request_method
+
 
 DFLT_METHOD_FUNC_FROM_METHOD_SPEC = mk_request_function
 
@@ -184,7 +194,7 @@ DFLT_METHOD_FUNC_FROM_METHOD_SPEC = mk_request_function
 class Py2Request(object):
     """ Make a class that has methods that offer a python interface to web requests """
 
-    def __init__(self, method_specs=None,  # imdict is just a dict made immutable
+    def __init__(self, method_specs=None,
                  method_func_from_method_spec=DFLT_METHOD_FUNC_FROM_METHOD_SPEC):
         """
         Initialize the object with web request calling methods.
@@ -251,6 +261,70 @@ class Py2Request(object):
                 method_func_from_method_spec = self._dflt_method_func_from_method_spec
             method_spec = method_func_from_method_spec(method_spec)
         inject_method(self, method_spec, method_name)
+
+
+class UrlMethodSpecsMaker:
+    """
+    Utility to help in making templated method_specs dicts to be used to define a Py2Request object.
+    """
+
+    def __init__(self, url_root, constant_url_query=None, **constant_items):
+        """
+        Make a method_spec factory.
+
+        Args:
+            url_root: The absolute prefix of all 'url_template' keys
+            constant_url_query: The dict specifying the query part of the url_template that should appear in
+                all url_templates (used for example, to specify api keys)
+            **constant_items: Other dict entries that should be systematically created
+
+        >>> mk_specs = UrlMethodSpecsMaker(
+        ...     url_root='http://myapi.com',
+        ...     constant_url_query={'apikey': 'SECRET', 'fav': 42},
+        ...     output_trans=lambda response: response.json())
+        >>>
+        >>> s = mk_specs(route='/search', url_queries={'q': 'search_term', 'limit': 'n'})
+        >>> assert list(s.keys()) == ['url_template', 'args', 'output_trans']
+        >>> s['url_template']
+        'http://myapi.com/search?apikey=SECRET&fav=42&q={search_term}&limit={n}'
+        >>> s['args']
+        ['search_term', 'n']
+        >>>
+        >>> s = mk_specs(route='/actions/poke', url_queries='user')
+        >>> s['url_template']
+        'http://myapi.com/actions/poke?apikey=SECRET&fav=42&user={user}'
+        >>> s['args']
+        ['user']
+        >>>
+        >>> s = mk_specs('/actions/msg', ['user', 'msg'])
+        >>> s['url_template']
+        'http://myapi.com/actions/msg?apikey=SECRET&fav=42&user={user}&msg={msg}'
+        >>> s['args']
+        ['user', 'msg']
+        """
+        self.url_root = url_root
+        if constant_url_query is None:
+            self.constant_url_suffix = ''
+        else:
+            self.constant_url_suffix = '?' + '&'.join(
+                map(lambda kv: f'{kv[0]}={kv[1]}', constant_url_query.items()))
+        self.constant_items = constant_items
+
+    def __call__(self, route, url_queries=None):
+        url_template = self.url_root + route + self.constant_url_suffix
+        if url_queries is None:
+            d = {'url_template': url_template}
+        if url_queries is not None:
+            if isinstance(url_queries, str):
+                url_queries = {url_queries: url_queries}
+            elif isinstance(url_queries, (list, tuple, set)):
+                url_queries = {name: name for name in url_queries}
+            # assert the general case where url query (key) and arg (val) names are different
+            assert isinstance(url_queries, dict), "url_queries should be a dict"
+            url_template += '&' + '&'.join(
+                map(lambda kv: f'{kv[0]}={{{kv[1]}}}', url_queries.items()))
+            d = {'url_template': url_template, 'args': list(url_queries.values())}
+        return dict(d, **self.constant_items)
 
 # def mk_python_binder(method_specs,
 #                      method_func_from_method_spec=DFLT_METHOD_FUNC_FROM_METHOD_SPEC,
