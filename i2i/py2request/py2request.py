@@ -1,6 +1,7 @@
 from functools import wraps
 from i2i.util import inject_method
 from requests import request
+import string
 from i2i.util import imdict
 from py2mint.signatures import set_signature_of_func
 
@@ -190,6 +191,8 @@ def mk_request_method(method_spec):
 
 DFLT_METHOD_FUNC_FROM_METHOD_SPEC = mk_request_function
 
+str_formatter = string.Formatter()
+
 
 class Py2Request(object):
     """ Make a class that has methods that offer a python interface to web requests """
@@ -251,11 +254,22 @@ class Py2Request(object):
         >>> # And I'll let the reader try the other requests, whose results are not stable enough to test like this
 
         """
+        self._method_specs = method_specs
         self._dflt_method_func_from_method_spec = method_func_from_method_spec
-        for method_name, method_spec in method_specs.items():
-            self.inject_method(method_name, method_spec, method_func_from_method_spec)
+        self._process_method_specs()
 
-    def inject_method(self, method_name, method_spec, method_func_from_method_spec=None):
+        for method_name, method_spec in self._method_specs.items():
+            self._inject_method(method_name, method_spec, method_func_from_method_spec)
+
+    def _process_method_specs(self):
+        if self._dflt_method_func_from_method_spec == mk_request_function:
+            for method_name, method_spec in self._method_specs.items():
+                if 'args' not in method_spec and 'url_template' in method_spec:
+                    method_spec['args'] = list(filter(bool,
+                                                      (x[1] for x in str_formatter.parse(method_spec['url_template']))))
+
+
+    def _inject_method(self, method_name, method_spec, method_func_from_method_spec=None):
         if not callable(method_spec):
             if method_func_from_method_spec is None:
                 method_func_from_method_spec = self._dflt_method_func_from_method_spec
