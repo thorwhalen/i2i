@@ -1,9 +1,31 @@
+"""
+Won't show the details here, but if you are used to it's not that hard, you just need to find the definition of the API, read it, figure out what part of the request you need in the URL and what you need to put in the "payload", figure out how those _inputs_ of the request need to be formated, construct the URL and the payload according to your newly acquired knowledge of this specific API, make a web request (say with `urllib.request` or `requests`), extract the information you need from the response object (often in `.contents` or `.json()`), and often process the data further to get it in the format you can use it directly (say a list, a dict, a dataframe, a numpy array, etc.).
+
+And if you're experienced, and have felt the pain of needing to reuse or adapt your code, you'll clean things up as soon as you figure this puzzle out. You'll divide your code into separate concerns, encapsulate these concerns in functions and classes, and offer a simple, intuitive, python-like interface that reflects the simplicity of what you're actually doing: Just getting some data. Something like:
+
+```
+nice_python_obj_I_can_use_directly = get_that_darn_data(query, using, my, words, values, and, defaults='here')
+```
+
+The details being hidden away, as they should.
+
+And that's fine. You've done well. Congratulate yourself, you deserve it.
+
+Now do that again and again and again, and sometimes under the pressure of a deadline that depends on this data being acquired.
+
+Are you enjoying yourself?
+
+There must be a better way...
+"""
 from functools import wraps
-from i2i.util import inject_method
 from requests import request
 import string
-from i2i.util import imdict
+from i2i.util import inject_method, imdict
 from py2mint.signatures import set_signature_of_func
+
+from warnings import warn
+
+warn('Deprecated: Use the one in https://github.com/i2mint/py2misc instead!')
 
 DFLT_PORT = 5000
 DFLT_BASE_URL = 'http://localhost:{port}'.format(port=DFLT_PORT)
