@@ -21,7 +21,7 @@ from functools import wraps
 from requests import request
 import string
 from i2i.util import inject_method, imdict
-from py2mint.signatures import set_signature_of_func
+from i2.signatures import set_signature_of_func
 
 from warnings import warn
 
